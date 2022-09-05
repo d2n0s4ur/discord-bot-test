@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, DiscordAPIError, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, DiscordAPIError, EmbedBuilder, MessageAttachment } = require('discord.js');
 const dotenv = require('dotenv');
 dotenv.config();
 const fs = require('node:fs');
@@ -8,7 +8,7 @@ const path = require('node:path');
 const token = process.env.DISCORD_TOKEN;
 
 // const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-// 봇에세 권한 부여
+// 봇에tj 권한 부여
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
 
@@ -57,28 +57,27 @@ client.on('interactionCreate', async interaction => {
 client.on('messageCreate', msg => {
   const MainchannelId = '1010496175520104490'; // Put <전체> channel's ID;
   const hashtagchannelIds = ['1015931645070676008', '1015931665333354546']; // put hashtag channel's IDs (ex. #그림체 #노말 #피드백 #팬아트 etc ..)
-
   if (msg.channelId != MainchannelId)
     return ;
 
   let mentionedchannelId = getmentionIds(msg.mentions.channels);
+  let attachmentURL = getattachmentURLs(msg.attachments);
   mentionedchannelId.forEach((item) => {
     if (hashtagchannelIds.indexOf(String(item)) != -1) { // 채널 언급을 했는데, 해당 채널이 해시태크 채널인 경우
-
       const url = `https://discord.com/channels/${msg.guildId}/${msg.channelId}}/${msg.id}`;
 
-      let embedmsg = new EmbedBuilder()
-        .setAuthor({name: msg.author.username + "#" + msg.author.discriminator, iconURL: msg.author.avatarURL(), url: url})
-        .setURL(url)
-        .setColor(0x1d7676)
-        .setTitle(`본문으로 가기`)
-        .setTimestamp()
-        .addFields(
-          { name : `message`, value: msg.content}
-        )
-        .setFooter({text: `from #${client.channels.cache.get(String(MainchannelId)).name}`, iconURL: msg.author.avatarURL()})
+      // let embedmsg = new EmbedBuilder()
+      //   .setAuthor({name: msg.author.username + "#" + msg.author.discriminator, iconURL: msg.author.avatarURL(), url: url})
+      //   .setURL(url)
+      //   .setColor(0x1d7676)
+      //   .setTitle(`본문으로 가기`)
+      //   .setTimestamp()
+      //   .addFields(
+      //     { name : `message`, value: msg.content}
+      //   )
+      //   .setFooter({text: `from #${client.channels.cache.get(String(MainchannelId)).name}`, iconURL: msg.author.avatarURL()})
 
-      client.channels.cache.get(String(item)).send({embeds: [embedmsg]});
+      client.channels.cache.get(String(item)).send({content: msg.content, files: attachmentURL});
     }
   });
 });
@@ -91,6 +90,14 @@ const getmentionIds = (channelsMap) => {
   })
   return (channels);
 };
+
+const getattachmentURLs = (attachmentsMap) => {
+  const URLs = [];
+  attachmentsMap.forEach((item) => {
+    URLs.push(item.url);
+  });
+  return (URLs);
+}
 
 // Bot login to server
 client.login(token);
