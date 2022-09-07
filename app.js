@@ -61,23 +61,11 @@ client.on('messageCreate', msg => {
     return ;
 
   let mentionedchannelId = getmentionIds(msg.mentions.channels);
-  let attachmentURL = getattachmentURLs(msg.attachments);
   mentionedchannelId.forEach((item) => {
     if (hashtagchannelIds.indexOf(String(item)) != -1) { // 채널 언급을 했는데, 해당 채널이 해시태크 채널인 경우
       const url = `https://discord.com/channels/${msg.guildId}/${msg.channelId}}/${msg.id}`;
-
-      // let embedmsg = new EmbedBuilder()
-      //   .setAuthor({name: msg.author.username + "#" + msg.author.discriminator, iconURL: msg.author.avatarURL(), url: url})
-      //   .setURL(url)
-      //   .setColor(0x1d7676)
-      //   .setTitle(`본문으로 가기`)
-      //   .setTimestamp()
-      //   .addFields(
-      //     { name : `message`, value: msg.content}
-      //   )
-      //   .setFooter({text: `from #${client.channels.cache.get(String(MainchannelId)).name}`, iconURL: msg.author.avatarURL()})
-
-      client.channels.cache.get(String(item)).send({content: msg.content, files: attachmentURL});
+      let attachmentembed = getattachmentURLs(msg.attachments, url);
+      client.channels.cache.get(String(item)).send({content: msg.content, embeds: attachmentembed});
     }
   });
 });
@@ -91,10 +79,18 @@ const getmentionIds = (channelsMap) => {
   return (channels);
 };
 
-const getattachmentURLs = (attachmentsMap) => {
+const getattachmentURLs = (attachmentsMap, url) => {
+  let flag = 0;
   const URLs = [];
   attachmentsMap.forEach((item) => {
-    URLs.push(item.url);
+    if (flag == 0)
+    {
+      URLs.push(new EmbedBuilder().setURL(url).setImage(item.url).setTitle("title").setDescription("desc").setFooter({ text: "footer" }));
+      flag = 1;
+    }
+    else {
+      URLs.push(new EmbedBuilder().setImage(item.url));
+    }
   });
   return (URLs);
 }
