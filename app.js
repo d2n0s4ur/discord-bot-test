@@ -139,15 +139,15 @@ client.on('messageReactionAdd', async (reaction, user) => {
       // console.log(reaction.message.mentions.users.entries().next().value);
       // const roleIds = JSON.parse(roleIdsString);
       // const permissions = roleIds.map((id) => ({ allow: 'VIEW_CHANNEL', id}));
-      const channel = await reaction.message.guild.channels.create('Feedback', {
-        type: 'text',
+      const channel = await reaction.message.guild.channels.create('new-feedback', {
+        type: 'GUILD_TEXT',
         permissionOverwrites: [
-          { deny: 'VIEW_CHANNEL', id: reaction.message.guild.id },
-          { allow: 'VIEW_CHANNEL', id: user.id },
+          { id: reaction.message.guild.id, allow: [''], deny: ['VIEW_CHANNEL'] },
+          { id: user.id, allow: ['VIEW_CHANNEL'], deny: ['SEND_MESSAGES']},
           // { allow: 'VIEW_CHANNEL', id: reaction.message.author.id},
-          ]
+          ],
       });
-      const msg = await channel.send('Please explain a brief description about your query below, our staff will get back to you as soon as possible. \nReact below to close this ticket.');
+      const msg = await channel.send('피드백을 할 수 있는 채널입니다. 관리자가 로깅을 하고 있으니, 상대방을 모욕하거나 가혹한 행위는 자제해주시길 바랍니다. \nReact below to close this ticket.');
       await msg.react('🔒'); //when a user reacts to this it will close this ticket
       msg.pin();
                   
