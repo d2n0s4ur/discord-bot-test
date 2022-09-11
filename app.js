@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, DiscordAPIError, EmbedBuilder, MessageAttachment } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, DiscordAPIError, EmbedBuilder, MessageAttachment, Partials, ReactionUserManager } = require('discord.js');
 const dotenv = require('dotenv');
 dotenv.config();
 const fs = require('node:fs');
@@ -22,7 +22,10 @@ const token = process.env.DISCORD_TOKEN;
 
 // const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 // 봇에tj 권한 부여
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers] });
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessageReactions],
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
+});
 
 
 // Command 연결
@@ -110,9 +113,10 @@ client.on('messageCreate', async (msg) => {
     } else { // make feedback tickets & feedback article
       setFeedbackPoint(msg.author.id, mypoint - 1);
       msg.delete();
-      msg.channel.send(`<@${msg.author.id}>님의 피드백 요청입니다.` + "```" + msg.content + "```");
-      const TicketEmbed = new EmbedBuilder().setTitle('**피드백을 하기 위해서는 아래 📩를 클릭하세요! 티켓이 생성됩니다.**');
-      const newembed = msg.channel.send({embeds: [TicketEmbed]});
+      const url = `https://discord.com/channels/${msg.guildId}/${msg.channelId}}`;
+      let attachmentembed = getattachmentURLs(msg.attachments, url);
+      const FeedBackEmbed = new EmbedBuilder().setTitle(`피드백을 하기 위해서는 아래 📩를 클릭하세요! 티켓이 생성됩니다.`);
+      const newembed = msg.channel.send({content: `<@${msg.author.id}>님의 피드백 요청입니다.` + "```" + msg.content + "```", embeds: attachmentembed, FeedBackEmbed});
       (await newembed).react('📩');
       return ;
     }
@@ -123,6 +127,61 @@ client.on('messageCreate', async (msg) => {
 
 // Check msg's react for feedback ticket
 /*  @param TODO */
+client.on('messageReactionAdd', async (reaction, user) => {
+  const FeedBackChannelId = '1017416270452367370';
+  
+  if (reaction.message.channelId != FeedBackChannelId || user.bot) return;
+  
+  if (reaction.emoji.name === '📩') {
+    console.log('Creating Feedback Channel');
+    try {
+      // console.log(reaction.message.guild);
+      // console.log(reaction.message.mentions.users.entries().next().value);
+      // const roleIds = JSON.parse(roleIdsString);
+      // const permissions = roleIds.map((id) => ({ allow: 'VIEW_CHANNEL', id}));
+      const channel = await reaction.message.guild.channels.create('Feedback', {
+        type: 'text',
+        permissionOverwrites: [
+          { deny: 'VIEW_CHANNEL', id: reaction.message.guild.id },
+          { allow: 'VIEW_CHANNEL', id: user.id },
+          // { allow: 'VIEW_CHANNEL', id: reaction.message.author.id},
+          ]
+      });
+      const msg = await channel.send('Please explain a brief description about your query below, our staff will get back to you as soon as possible. \nReact below to close this ticket.');
+      await msg.react('🔒'); //when a user reacts to this it will close this ticket
+      msg.pin();
+                  
+      const ticket = await Ticket.create({
+        authorId: user.id,
+        channelId: channel.id,
+        guildId: reaction.message.guild.id,
+        resolved: false,
+        closedMessageId: msg.id
+      });
+
+      const ticketId = String(ticket.getDataValue('ticketId')).padStart(4, 0);
+        await channel.edit({ name: `feedback-${ticketId}`})
+      } catch (err) {
+        console.log(err);
+        client.users.cache.get(owner).send(err);
+    }
+  } else if (reaction.emoji.name === '🔒') { 
+    const ticket = await Ticket.findOne({ where: { channelId: reaction.message.channel.id }}) //this part closes the ticket / hides it from the user so only admins can see
+    if (ticket) {
+      console.log('Ticket has been found');
+      const closedMessageId = ticket.getDataValue('closedMessageId');
+      if (reaction.message.id === closedMessageId) {
+        reaction.message.channel.updateOverwrite(ticket.getDataValue('authorId'), {
+          VIEW_CHANNEL: false 
+        }).catch((err) => console.log(err));
+          ticket.resolved = true;
+          await ticket.save();
+          console.log('Updated');
+      }
+    }
+  };
+});
+
 
 // Channel map 객체에서 channel의 ID를 파싱
 const getmentionIds = (channelsMap) => {
@@ -140,11 +199,11 @@ const getattachmentURLs = (attachmentsMap, url) => {
   attachmentsMap.forEach((item) => {
     if (flag == 0)
     {
-      URLs.push(new EmbedBuilder().setURL(url).setImage(item.url).setTitle("title").setDescription("desc").setFooter({ text: "footer" }));
+      URLs.push(new EmbedBuilder().setURL(url).setImage(item.url));
       flag = 1;
     }
     else {
-      URLs.push(new EmbedBuilder().setImage(item.url));
+      URLs.push(new EmbedBuilder().setURL(url).setImage(item.url));
     }
   });
   return (URLs);
