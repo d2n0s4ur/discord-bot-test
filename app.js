@@ -1,5 +1,6 @@
-const { Client, GatewayIntentBits, Collection, DiscordAPIError, EmbedBuilder, MessageAttachment, Partials, ReactionUserManager, PermissionFlagsBits, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, DiscordAPIError, EmbedBuilder, MessageAttachment, Partials, ReactionUserManager, PermissionFlagsBits, ChannelType, ConnectionVisibility } = require('discord.js');
 const dotenv = require('dotenv');
+const { channel } = require('node:diagnostics_channel');
 dotenv.config();
 const fs = require('node:fs');
 const path = require('node:path');
@@ -23,7 +24,7 @@ const token = process.env.DISCORD_TOKEN;
 // const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 // 봇에tj 권한 부여
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessageReactions],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessageReactions, GatewayIntentBits.DirectMessages, GatewayIntentBits.MessageContent],
   partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
@@ -130,9 +131,8 @@ client.on('messageCreate', async (msg) => {
 client.on('messageReactionAdd', async (reaction, user) => {
   const FeedBackChannelId = '1017416270452367370';
   const FeedBackChannelCategoryId = '1019138276268974100';
-
-  if (reaction.message.channelId != FeedBackChannelId || user.bot) return;
-  // console.log(reaction.message.guild.channels);
+  
+  if ((reaction.message.channelId != FeedBackChannelId && reaction.message.channel.parentId != FeedBackChannelCategoryId) || user.bot) return;
   if (reaction.emoji.name === '📩') {
     console.log('Creating Feedback Channel');
     try {
@@ -153,13 +153,26 @@ client.on('messageReactionAdd', async (reaction, user) => {
           ],
       }).then(async c => {
         console.log(`#feedback-${ReactionRequestUserId}-${user.username} has been created`);
-        const msg = await c.send('피드백을 할 수 있는 채널입니다. 관리자가 로깅을 하고 있으니, 상대방을 모욕하거나 가혹한 행위는 자제해주시길 바랍니다. \nReact below to close this ticket.');
+        const msg = await c.send(`피드백을 할 수 있는 채널입니다. 관리자가 로깅을 하고 있으니, 상대방을 모욕하거나 가혹한 행위는 자제해주시길 바랍니다. \n피드백을 받는 사용자는 피드백이 완료된 후 아래 reaction을 통해 피드백 채널을 닫을 수 있습니다.`);
         await msg.react('🔒'); //when a user reacts to this it will close this ticket
         msg.pin(); 
       });
     } catch (e) {
       console.log(e);
     }
+  }
+  // When react with 🔒 & evaluator react -> close channel (it means just move channel to archive(only admin can see))
+  if (reaction.emoji.name === '🔒' && reaction.message.channel.name.indexOf(user.id) != -1)
+  {
+    const TargetChannel = reaction.message.channel;
+    console.log(`Request Delete #${TargetChannel.name}`);
+    const Remsg = await TargetChannel.send({content: `피드백이 정말로 완료 되었나요? 아래 reaction에 공감하는 경우, 최종적으로 채널이 삭제됩니다.`, ephemeral: true});
+    await Remsg.react('✅');
+  }
+  console.log(reaction)
+  if (reaction.emoji.name === '✅' && reaction.message.channel.name.indexOf(user.id) != -1 && reaction.message.author.bot && reaction.message.content.indexOf(`피드백이 정말로 완료 되었나요? 아래 reaction에 공감하는 경우, 최종적으로 채널이 삭제됩니다.`) != -1)
+  {
+    console.log('real del');
   }
 });
 
