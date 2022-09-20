@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, DiscordAPIError, EmbedBuilder, MessageAttachment, Partials, ReactionUserManager, PermissionFlagsBits, ChannelType, ConnectionVisibility } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, DiscordAPIError, EmbedBuilder, MessageAttachment, Partials, ReactionUserManager, PermissionFlagsBits, ChannelType, ConnectionVisibility, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const dotenv = require('dotenv');
 const { channel } = require('node:diagnostics_channel');
 dotenv.config();
@@ -93,7 +93,16 @@ client.on('messageCreate', async (msg) => {
     if (hashtagchannelIds.indexOf(String(item)) != -1) { // 채널 언급을 했는데, 해당 채널이 해시태크 채널인 경우
       const url = `https://discord.com/channels/${msg.guildId}/${msg.channelId}}/${msg.id}`;
       let attachmentembed = getattachmentURLs(msg.attachments, url);
-      client.channels.cache.get(String(item)).send({content: msg.content, embeds: attachmentembed});
+      // console.log(msg);
+      let contentembed = new EmbedBuilder()
+        .setColor(0x00FFFF)
+        .setAuthor({ name: msg.author.username + '#' + msg.author.discriminator, iconURL: msg.author.avatarURL()})
+        .setDescription(msg.content)
+        .setTimestamp(Date.now())
+        .setFooter({text: `from #${client.channels.cache.get(MainchannelId).name}`})
+      attachmentembed.unshift(contentembed);
+      const hashchannel = client.channels.cache.get(String(item))
+      const newmsg = hashchannel.send({content: '', embeds: attachmentembed});
     }
   });
 });
@@ -127,7 +136,6 @@ client.on('messageCreate', async (msg) => {
 });
 
 // Check msg's react for feedback ticket
-/*  @param TODO */
 client.on('messageReactionAdd', async (reaction, user) => {
   const FeedBackChannelId = '1017416270452367370';
   const FeedBackChannelCategoryId = '1019138276268974100';
@@ -136,10 +144,6 @@ client.on('messageReactionAdd', async (reaction, user) => {
   if (reaction.emoji.name === '📩') {
     console.log('Creating Feedback Channel');
     try {
-      // console.log(reaction.message.guild);
-      // console.log(reaction.message.mentions.users.entries().next().value);
-      // const roleIds = JSON.parse(roleIdsString);
-      // const permissions = roleIds.map((id) => ({ allow: 'VIEW_CHANNEL', id}));
       const ReactionRequestUserId = reaction.message.content.split(">")[0].split("<@")[1];
       reaction.message.guild.channels.create({
         name: `feedback-${ReactionRequestUserId}-${user.username}`,
@@ -153,7 +157,17 @@ client.on('messageReactionAdd', async (reaction, user) => {
           ],
       }).then(async c => {
         console.log(`#feedback-${ReactionRequestUserId}-${user.username} has been created`);
-        const msg = await c.send(`피드백을 할 수 있는 채널입니다. 관리자가 로깅을 하고 있으니, 상대방을 모욕하거나 가혹한 행위는 자제해주시길 바랍니다. \n피드백을 받는 사용자는 피드백이 완료된 후 아래 reaction을 통해 피드백 채널을 닫을 수 있습니다.`);
+        const row = new ActionRowBuilder()
+          .addComponents(
+            new ButtonBuilder()
+              .setLabel(`피드백 내용 바로보기`)
+              .setStyle(ButtonStyle.Link)
+              .setURL(`https://discord.com/channels/${reaction.message.guildId}/${reaction.message.channelId}}/${reaction.message.id}`)
+          );
+        const msg = await c.send({
+          content: `피드백을 할 수 있는 채널입니다. 관리자가 로깅을 하고 있으니, 상대방을 모욕하거나 가혹한 행위는 자제해주시길 바랍니다. \n피드백을 받는 사용자는 피드백이 완료된 후 아래 reaction을 통해 피드백 채널을 닫을 수 있습니다.\n`,
+          components: [row]
+        });
         await msg.react('🔒'); //when a user reacts to this it will close this ticket
         msg.pin(); 
       });
@@ -169,10 +183,11 @@ client.on('messageReactionAdd', async (reaction, user) => {
     const Remsg = await TargetChannel.send({content: `피드백이 정말로 완료 되었나요? 아래 reaction에 공감하는 경우, 최종적으로 채널이 삭제됩니다.`, ephemeral: true});
     await Remsg.react('✅');
   }
-  console.log(reaction)
   if (reaction.emoji.name === '✅' && reaction.message.channel.name.indexOf(user.id) != -1 && reaction.message.author.bot && reaction.message.content.indexOf(`피드백이 정말로 완료 되었나요? 아래 reaction에 공감하는 경우, 최종적으로 채널이 삭제됩니다.`) != -1)
   {
-    console.log('real del');
+    const TargetChannel = reaction.message.channel;
+    const Delmsg = await TargetChannel.send({content: `3초 내로 Channel이 삭제됩니다...`, ephemeral: true});
+    TargetChannel.delete();
   }
 });
 
@@ -190,8 +205,8 @@ const getmentionIds = (channelsMap) => {
 const getattachmentURLs = (attachmentsMap, url) => {
   let flag = 0;
   const URLs = [];
-  attachmentsMap.forEach((item) => {
-    if (flag == 0)
+  attachmentsMap.forEach((item, index) => {
+    if (index % 4 == 0)
     {
       URLs.push(new EmbedBuilder().setURL(url).setImage(item.url));
       flag = 1;
