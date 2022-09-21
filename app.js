@@ -101,7 +101,7 @@ client.on('messageCreate', async (msg) => {
               .setStyle(ButtonStyle.Link)
               .setURL(url)
           );
-      let secondrow = getHashtagChannelRow(msg.content);
+      let secondrow = getHashtagChannelRow(msg);
       
       let contentembed = new EmbedBuilder()
         .setColor(0x00FFFF)
@@ -223,16 +223,19 @@ const getattachmentURLs = (attachmentsMap, url) => {
 
 // Hashtag to conetents Button
 const getHashtagChannelRow = (msg, row) => {
-  const TagedChannelList = msg.match(/\<#(.*?)\>/gi);
+  const TagedChannelList = msg.content.match(/\<#(.*?)\>/gi);
   let ret = new ActionRowBuilder();
-  TagedChannelList.forEach((item, index) => {
-    ret.addComponents(
-      new ButtonBuilder()
-        .setLabel(`#${client.channels.cache.get(item.split('<#')[1].split('>')[0]).name}`)
-        .setStyle(ButtonStyle.Secondary)
-        .setCustomId(`Channel_${index}`)
-        .setDisabled(true)
-    );  
+  TagedChannelList.forEach((item) => {
+    if (client.channels.cache.get(item.split('<#')[1].split('>')[0]) != undefined)
+    {
+      ret.addComponents(
+        new ButtonBuilder()
+          .setLabel(`#${client.channels.cache.get(item.split('<#')[1].split('>')[0]).name}`)
+          .setStyle(ButtonStyle.Link)
+          .setURL(client.channels.cache.get(item.split('<#')[1].split('>')[0]).url)
+          // .setDisabled(true)
+      );  
+    }
   });
   return (ret);
 }
