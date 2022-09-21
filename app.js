@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const { channel } = require('node:diagnostics_channel');
 dotenv.config();
 const fs = require('node:fs');
+const { resolve } = require('node:path');
 const path = require('node:path');
 const { callbackify } = require('node:util');
 const sqlite3 = require('sqlite3').verbose();
@@ -93,16 +94,24 @@ client.on('messageCreate', async (msg) => {
     if (hashtagchannelIds.indexOf(String(item)) != -1) { // 채널 언급을 했는데, 해당 채널이 해시태크 채널인 경우
       const url = `https://discord.com/channels/${msg.guildId}/${msg.channelId}}/${msg.id}`;
       let attachmentembed = getattachmentURLs(msg.attachments, url);
-      // console.log(msg);
+      let row = new ActionRowBuilder()
+          .addComponents(
+            new ButtonBuilder()
+              .setLabel(`본문으로 가기`)
+              .setStyle(ButtonStyle.Link)
+              .setURL(url)
+          );
+      let secondrow = getHashtagChannelRow(msg.content);
+      
       let contentembed = new EmbedBuilder()
         .setColor(0x00FFFF)
         .setAuthor({ name: msg.author.username + '#' + msg.author.discriminator, iconURL: msg.author.avatarURL()})
-        .setDescription(msg.content)
+        .setDescription(msg.content.replace(/\<#(.*?)\>/gi, ''))
         .setTimestamp(Date.now())
         .setFooter({text: `from #${client.channels.cache.get(MainchannelId).name}`})
       attachmentembed.unshift(contentembed);
       const hashchannel = client.channels.cache.get(String(item))
-      const newmsg = hashchannel.send({content: '', embeds: attachmentembed});
+      const newmsg = hashchannel.send({content: '', embeds: attachmentembed, components: [secondrow, row]});
     }
   });
 });
@@ -146,7 +155,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
     try {
       const ReactionRequestUserId = reaction.message.content.split(">")[0].split("<@")[1];
       reaction.message.guild.channels.create({
-        name: `feedback-${ReactionRequestUserId}-${user.username}`,
+        name: `feedback-${ReactionRequestUserId}-${user.id}`,
         type: ChannelType.GuildText,
         parent: FeedBackChannelCategoryId,
         topic: user.id,
@@ -156,7 +165,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
           { id: ReactionRequestUserId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]},
           ],
       }).then(async c => {
-        console.log(`#feedback-${ReactionRequestUserId}-${user.username} has been created`);
+        console.log(`#feedback-${ReactionRequestUserId}-${user.id} has been created`);
         const row = new ActionRowBuilder()
           .addComponents(
             new ButtonBuilder()
@@ -183,16 +192,17 @@ client.on('messageReactionAdd', async (reaction, user) => {
     const Remsg = await TargetChannel.send({content: `피드백이 정말로 완료 되었나요? 아래 reaction에 공감하는 경우, 최종적으로 채널이 삭제됩니다.`, ephemeral: true});
     await Remsg.react('✅');
   }
-  if (reaction.emoji.name === '✅' && reaction.message.channel.name.indexOf(user.id) != -1 && reaction.message.author.bot && reaction.message.content.indexOf(`피드백이 정말로 완료 되었나요? 아래 reaction에 공감하는 경우, 최종적으로 채널이 삭제됩니다.`) != -1)
+  if (reaction.emoji.name === '✅' && reaction.message.channel.name.split('-')[2].indexOf(user.id) != -1 && reaction.message.author.bot && reaction.message.content.indexOf(`피드백이 정말로 완료 되었나요? 아래 reaction에 공감하는 경우, 최종적으로 채널이 삭제됩니다.`) != -1)
   {
     const TargetChannel = reaction.message.channel;
+    const id = reaction.message.channel.name.split('-')[2];
+    addFeedbackPoint(id); // add interviewer's feedbackpoint
     const Delmsg = await TargetChannel.send({content: `3초 내로 Channel이 삭제됩니다...`, ephemeral: true});
     TargetChannel.delete();
   }
 });
 
-
-// Channel map 객체에서 channel의 ID를 파싱
+// Parsing Channel's ID from Channel map object.
 const getmentionIds = (channelsMap) => {
   const channels = [];
   channelsMap.forEach((item)=>{
@@ -205,19 +215,29 @@ const getmentionIds = (channelsMap) => {
 const getattachmentURLs = (attachmentsMap, url) => {
   let flag = 0;
   const URLs = [];
-  attachmentsMap.forEach((item, index) => {
-    if (index % 4 == 0)
-    {
-      URLs.push(new EmbedBuilder().setURL(url).setImage(item.url));
-      flag = 1;
-    }
-    else {
-      URLs.push(new EmbedBuilder().setURL(url).setImage(item.url));
-    }
+  attachmentsMap.forEach((item) => {
+    URLs.push(new EmbedBuilder().setImage(item.url));
   });
   return (URLs);
 }
 
+// Hashtag to conetents Button
+const getHashtagChannelRow = (msg, row) => {
+  const TagedChannelList = msg.match(/\<#(.*?)\>/gi);
+  let ret = new ActionRowBuilder();
+  TagedChannelList.forEach((item, index) => {
+    ret.addComponents(
+      new ButtonBuilder()
+        .setLabel(`#${client.channels.cache.get(item.split('<#')[1].split('>')[0]).name}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setCustomId(`Channel_${index}`)
+        .setDisabled(true)
+    );  
+  });
+  return (ret);
+}
+
+// Get userid's Feedback point from DB
 const getFeedbackPoint = (id) => {
   return new Promise((resolve, reject) => {
     const query = `select point from feedback where id=${id}`;
@@ -233,6 +253,7 @@ const getFeedbackPoint = (id) => {
   })
 }
 
+// Set userid's Feedback point as newpoint
 const setFeedbackPoint = (id, newpoint) => {
   const query = `UPDATE feedback SET point=${newpoint} where id='${id}'`;
   db.serialize();
@@ -243,6 +264,31 @@ const setFeedbackPoint = (id, newpoint) => {
       return ;
     }
   });
+}
+
+// Add feedbackPoint 1 to userid
+const addFeedbackPoint = (id) => {
+  const query = `select point from feedback where id=${id}`;
+  db.serialize();
+    db.all(query,(err, row)=>{
+      if(err) {
+        console.log('db error: ' + err);
+        resolve(0);
+      }
+      else {
+        const query2 = `UPDATE feedback SET point = ${row[0]['point'] + 1} where id = '${id}'`;
+        db.serialize();
+        db.all(query2, (err, row)=>{
+          if (err) {
+            console.log('db error: ' + err);
+            resolve(0);
+          }
+          else {
+            return ;
+          }
+        })
+      }
+    });
 }
 
 // Bot login to server
