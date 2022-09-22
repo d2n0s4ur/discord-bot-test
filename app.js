@@ -1,12 +1,12 @@
 const { Client, GatewayIntentBits, Collection, DiscordAPIError, EmbedBuilder, MessageAttachment, Partials, ReactionUserManager, PermissionFlagsBits, ChannelType, ConnectionVisibility, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const dotenv = require('dotenv');
 const { channel } = require('node:diagnostics_channel');
-dotenv.config();
 const fs = require('node:fs');
 const { resolve } = require('node:path');
 const path = require('node:path');
 const { callbackify } = require('node:util');
 const sqlite3 = require('sqlite3').verbose();
+dotenv.config();
 
 // setting DB
 const dbPath = path.resolve(__dirname, './db/feedback.db');
@@ -78,7 +78,7 @@ client.on('guildMemberAdd', async (member) => {
 
   const query = `INSERT INTO feedback VALUES(${member.user.id}, ${defaultpoint})`;
   db.all(query,(err)=>{
-    if(err) console.log(err);
+    if(err) console.log("[-] set feedback point err: " + err);
   });
 });
 
